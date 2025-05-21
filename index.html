@@ -118,6 +118,7 @@
   let score = 0;
   let gameRunning = false;
   let gamePaused = false;
+  let snakeMovedSinceStart = false; // Track if snake has moved after start
 
   // Snake color starts green, changes after eating apple
   let snakeColor = '#27ae60';
@@ -138,7 +139,6 @@
       if (!snake.some(segment => segment.x === newApple.x && segment.y === newApple.y)) break;
     }
     apple = newApple;
-    // Next apple color index cycles:
     currentAppleColorIndex = (currentAppleColorIndex + 1) % appleColors.length;
   }
 
@@ -173,8 +173,9 @@
     snake = [{ x: 10, y: 10 }];
     velocity = { x: 0, y: 0 };
     score = 0;
-    gameRunning = false;
+    gameRunning = true;      // Start game immediately
     gamePaused = false;
+    snakeMovedSinceStart = false; // Snake hasn't moved yet
     currentAppleColorIndex = 0;
     snakeColor = '#27ae60';
     timeLeft = totalTime;
@@ -184,16 +185,15 @@
     gameOverDiv.style.display = 'none';
     pauseResumeBtn.textContent = 'Pause';
     clearInterval(timerInterval);
-    draw(); // Initial draw
+    startTimer();
+    draw();
   }
 
   // Draw game frame
   function draw() {
-    // Clear background
     ctx.fillStyle = '#111';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw apple with current apple color
     const appleColor = appleColors[currentAppleColorIndex];
     ctx.fillStyle = appleColor;
     ctx.shadowColor = appleColor;
@@ -201,7 +201,6 @@
     ctx.fillRect(apple.x * gridSize, apple.y * gridSize, gridSize, gridSize);
     ctx.shadowBlur = 0;
 
-    // Draw snake, head slightly darker
     snake.forEach((segment, index) => {
       ctx.fillStyle = index === 0 ? shadeColor(snakeColor, -20) : snakeColor;
       ctx.shadowColor = snakeColor;
@@ -235,28 +234,26 @@
   // Update game state for each tick
   function update() {
     if (!gameRunning || gamePaused) {
-      draw(); // Still draw so pause screen is visible
-      return;
-    }
-
-    // Don't move if no direction
-    if (velocity.x === 0 && velocity.y === 0) {
       draw();
       return;
     }
 
-    // Calculate new head position with wrap-around
+    // If snake hasn't moved yet, don't move the snake body
+    if (!snakeMovedSinceStart) {
+      draw();
+      return;
+    }
+
     const head = {
       x: (snake[0].x + velocity.x + tileCount) % tileCount,
       y: (snake[0].y + velocity.y + tileCount) % tileCount,
     };
 
-    // Check collision with self
     if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
       gameRunning = false;
       gamePaused = false;
-      gameOverDiv.style.display = 'block';
       clearInterval(timerInterval);
+      gameOverDiv.style.display = 'block';
       pauseResumeBtn.textContent = 'Pause';
       draw();
       return;
@@ -264,15 +261,12 @@
 
     snake.unshift(head);
 
-    // Eating apple?
     if (head.x === apple.x && head.y === apple.y) {
       score++;
       scoreboard.textContent = `Score: ${score}`;
-      // Change snake color to the apple color eaten
       snakeColor = appleColors[currentAppleColorIndex];
       placeApple();
     } else {
-      // Remove tail if no apple eaten
       snake.pop();
     }
 
@@ -281,7 +275,7 @@
 
   // Game loop using requestAnimationFrame and timing for smooth moves
   let lastFrameTime = 0;
-  const moveInterval = 120; // ms between moves (snake speed)
+  const moveInterval = 120;
 
   function gameLoop(timestamp) {
     if (!lastFrameTime) lastFrameTime = timestamp;
@@ -294,30 +288,28 @@
     requestAnimationFrame(gameLoop);
   }
 
-  // Handle keyboard input for direction and starting the game
+  // Direction keys control movement
   window.addEventListener('keydown', e => {
+    if (!gameRunning || gamePaused) return;
+
     if (e.key === 'ArrowUp' && velocity.y !== 1) {
       velocity = { x: 0, y: -1 };
-      gameRunning = true;
-      if (!timerInterval) startTimer();
+      snakeMovedSinceStart = true;
     } else if (e.key === 'ArrowDown' && velocity.y !== -1) {
       velocity = { x: 0, y: 1 };
-      gameRunning = true;
-      if (!timerInterval) startTimer();
+      snakeMovedSinceStart = true;
     } else if (e.key === 'ArrowLeft' && velocity.x !== 1) {
       velocity = { x: -1, y: 0 };
-      gameRunning = true;
-      if (!timerInterval) startTimer();
+      snakeMovedSinceStart = true;
     } else if (e.key === 'ArrowRight' && velocity.x !== -1) {
       velocity = { x: 1, y: 0 };
-      gameRunning = true;
-      if (!timerInterval) startTimer();
+      snakeMovedSinceStart = true;
     }
   });
 
   // Pause/resume button
   pauseResumeBtn.addEventListener('click', () => {
-    if (!gameRunning) return; // Can't pause if not started or game over
+    if (!gameRunning) return;
     gamePaused = !gamePaused;
     pauseResumeBtn.textContent = gamePaused ? 'Resume' : 'Pause';
   });
@@ -327,7 +319,6 @@
     resetGame();
   });
 
-  // Initial setup
   resetGame();
   requestAnimationFrame(gameLoop);
 })();
